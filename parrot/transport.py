@@ -39,42 +39,25 @@ def optimal_transport_distance(
     q_np = q_features.detach().numpy()
 
     if method == "wasserstein":
-        # Full Wasserstein distance
-        distances = []
-        for i in range(batch_size):
-            # Compute cost matrix
-            p = p_np[i]  # [feature_dim]
-            q = q_np[i]  # [feature_dim]
+        # Compute Wasserstein distance between two distributions
+        # Create uniform weights for samples in each batch
+        a = np.ones(len(p_np)) / len(p_np)
+        b = np.ones(len(q_np)) / len(q_np)
 
-            # Create uniform weights
-            a = np.ones(len(p)) / len(p)
-            b = np.ones(len(q)) / len(q)
+        # Compute Euclidean cost matrix between all sample pairs
+        M = pot.utils.dist(p_np, q_np)
 
-            # Compute Euclidean cost matrix
-            M = pot.utils.dist(p.reshape(-1, 1), q.reshape(-1, 1))
-
-            # Solve OT problem
-            ot_dist = pot.emd2(a, b, M)
-            distances.append(ot_dist)
-
-        distance = torch.tensor(distances, dtype=p_features.dtype)
+        # Solve optimal transport problem
+        ot_dist = pot.emd2(a, b, M)
+        distance = torch.tensor([ot_dist], dtype=p_features.dtype)
 
     elif method == "sliced_wasserstein":
-        # Faster Sliced Wasserstein distance
-        distances = []
-        for i in range(batch_size):
-            p = p_np[i]  # [feature_dim]
-            q = q_np[i]  # [feature_dim]
-
-            # Compute sliced Wasserstein distance
-            sw_dist = pot.sliced_wasserstein_distance(
-                p.reshape(1, -1),
-                q.reshape(1, -1),
-                n_projections=50
-            )
-            distances.append(sw_dist)
-
-        distance = torch.tensor(distances, dtype=p_features.dtype)
+        # Compute sliced Wasserstein distance (faster approximation)
+        sw_dist = pot.sliced_wasserstein_distance(
+            p_np, q_np,
+            n_projections=50
+        )
+        distance = torch.tensor([sw_dist], dtype=p_features.dtype)
 
     else:
         raise ValueError(f"Unknown method: {method}")
